@@ -3,7 +3,7 @@ name = "taskwait"
 version = "0.1.0"
 authors = ["staticgc <metanym3@gmail.com>"]
 edition = "2018"
-licence-file = "LICENSE"
+license-file = "LICENSE"
 description = "Runtime agnostic way to wait for a group of async tasks"
 homepage = "https://github.com/staticgc/taskwait"
 documentation = "https://docs.rs/taskwait"
@@ -11,6 +11,7 @@ repository = "https://github.com/staticgc/taskwait"
 readme = "README.md"
 
 keywords = ["async", "await", "wait", "waitgroup", "tasks"]
+categories = ["asynchronous", ""]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
