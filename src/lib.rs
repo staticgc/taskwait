@@ -22,7 +22,7 @@
 //! 
 //! Note: User must ensure that call to done() made above is made in both success & error code path.
 //!
-//! ## Example using add & auto_work
+//! ## Example using add & add_work
 //! This example uses auto_work() which creates a [`Work`] object. When it goes out of scope done() is 
 //! is automatically called.
 //!
@@ -33,35 +33,13 @@
 //! async fn main() {
 //!     let tg = TaskGroup::new();
 //!     for _ in 0..10 {
-//!         tg.add(1);
-//!         let work = tg.auto_work();
+//!         let work = tg.add_work(1);
 //!         tokio::spawn(async move{
 //!             let _work = work; // done() will be called when this is dropped
 //!             //...
 //!         });
 //!     }
 //! 
-//!     tg.wait().await;
-//! }
-//! ```
-//!
-//! ## Example using work
-//! This example uses work() which creates a [`Work`] object. This calls [`TaskGroup::add`]. When it goes out of scope done() is 
-//! is automatically called.
-//!
-//! ```no_run
-//! use taskwait::TaskGroup;
-//! 
-//! #[tokio::main]
-//! async fn main() {
-//!     let tg = TaskGroup::new();
-//!     for _ in 0..10 {
-//!         let work = tg.work();
-//!         tokio::spawn(async move{
-//!             let _work = work; // done() will be called when this is dropped
-//!             //...
-//!         });
-//!     }
 //!     tg.wait().await;
 //! }
 //! ```
@@ -83,46 +61,24 @@ impl TaskGroup {
         }
     }
 
-    /// Increases/Decreases the task counter.
+    /// Increases the task counter.
     ///
     /// This is used to indicate an intention for an upcoming task. Alternatively, this
     /// can be used to decrement the task counter.
     ///
     /// Call to this function should be matched by call to [`Self::done`].
     /// If the call to done() needs to be done in a RAII manner use [`Self::auto_work`]
-    /// 
-
-    pub fn add(&self, n: i64) {
+    pub fn add(&self, n: u32) {
         self.inner.add(n);
     }
 
-    /// Creates a work which increments the task counter
+    /// Creates a work which does increment the task counter by `n`.
     /// The returned [`Work`] decrements the counter when dropped.
-    ///
-    /// This is equivalent to calling add() & auto_work():
-    /// ```no_run
-    /// use taskwait::TaskGroup;
-    ///
-    /// #[tokio::main]
-    /// async fn main() {
-    ///     let tg = TaskGroup::new();
-    ///     tg.add(1);
-    ///     let work = tg.auto_work();
-    /// }
-    /// ```
-    pub fn work(&self) -> Work {
-        self.add(1);
-        self.auto_work()
-    }
+    pub fn add_work(&self, n: u32) -> Work {
+        self.add(n);
 
-    /// Creates a work which does not increment the task counter
-    /// The returned [`Work`] decrements the counter when dropped.
-    /// The only difference between this & work is that [`work`] 
-    /// increments the counter, whereas this does not.
-    /// 
-    /// [`work`]: Self::work
-    pub fn auto_work(&self) -> Work {
         Work {
+            n,
             inner: self.inner.clone(),
         }
     }
@@ -130,6 +86,11 @@ impl TaskGroup {
     /// Decrements the task counter.
     pub fn done(&self) {
         self.inner.done();
+    }
+
+    /// Decrements the task counter by `n`
+    pub fn done_n(&self, n: u32) {
+        self.inner.done_n(n);
     }
 
     /// Returns the [`WaitFuture`] 
@@ -175,23 +136,27 @@ impl Inner {
         }
     }
 
-    fn add(&self, n: i64) {
+    fn add(&self, n: u32) {
         // A relaxed ordering should be sufficient because, the
         // add() is always called on a valid & live object
         self.counter.fetch_add(n as i64, Ordering::Relaxed);
     }
 
-
-    pub fn done(&self) {
+    fn done_n(&self, n: u32) {
+        let n = n as i64;
         // fetch_sub returns the value before the subtraction.
         // If this is the last done() then subtraction will make value 0 but will return
-        // the previous value i.e. 1
-        let prev_val = self.counter.fetch_sub(1, Ordering::Release);
+        // the previous value 
+        let prev_val = self.counter.fetch_sub(n, Ordering::Release);
 
-        if prev_val <= 1 {
+        if prev_val - n   <= 1 {
             //Time to wake up the future
             self.waker.wake();
         }
+    }
+
+    pub fn done(&self) {
+        self.done_n(1);
     }
 }
 
@@ -199,12 +164,13 @@ impl Inner {
 ///
 /// When dropped, it decrements the task counter. See [`TaskGroup::work`] & [`TaskGroup::auto_work`]
 pub struct Work {
+    n: u32,
     inner: Arc<Inner>,
 }
 
 impl Drop for Work {
     fn drop(&mut self) {
-        self.inner.done()
+        self.inner.done_n(self.n)
     }
 }
 
@@ -264,14 +230,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn basic_test_add_auto_work() {
+    async fn basic_test_add_work() {
         let tg = TaskGroup::new();
         let num = Arc::new(Mutex::new(0));
         let count = 10000;
 
         for _ in 0..count {
-            tg.add(1);
-            let work = tg.auto_work();
+            let work = tg.add_work(1);
 
             let n = num.clone();
             tokio::spawn(async move {
@@ -285,26 +250,71 @@ mod tests {
 
         let n = num.lock().await;
         assert_eq!(count, *n);
-    }    
+    }
 
     #[tokio::test]
-    async fn basic_test_work() {
+    async fn basic_test_addn_workn() {
         let tg = TaskGroup::new();
         let num = Arc::new(Mutex::new(0));
         let count = 10000;
 
-        for _ in 0..count {
-            let work = tg.work();
-            let n = num.clone();
+        let work = tg.add_work(count);
+        let num_c = num.clone();
 
-            tokio::spawn(async move {
-                let _work = work;
+        tokio::spawn(async move {
+            let _work = work;
+            let mut hvec = Vec::new();
 
-                let mut n = n.lock().await;
-                *n += 1;
-            });
+            for _ in 0..count {
+                let n = num_c.clone();
+                let h = tokio::spawn(async move {
+                    let mut n = n.lock().await;
+                    *n += 1;
+                });
+                hvec.push(h);
+            }
 
-        }
+            for h in hvec {
+                let _ = h.await;
+            }
+
+        });
+
+        tg.wait().await;
+
+        let n = num.lock().await;
+        assert_eq!(count, *n);
+    }
+
+    #[tokio::test]
+    async fn basic_test_addn_donen() {
+        let tg = TaskGroup::new();
+        let num = Arc::new(Mutex::new(0));
+        let count = 10000;
+
+        tg.add(count);
+        let num_c = num.clone();
+
+        let tg_c = tg.clone();
+
+        tokio::spawn(async move {
+            let mut hvec = Vec::new();
+
+            for _ in 0..count {
+                let n = num_c.clone();
+                let h = tokio::spawn(async move {
+                    let mut n = n.lock().await;
+                    *n += 1;
+                });
+                hvec.push(h);
+            }
+
+            for h in hvec {
+                let _ = h.await;
+            }
+
+            tg_c.done_n(count); 
+        });
 
         tg.wait().await;
 
