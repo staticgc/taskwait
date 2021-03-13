@@ -11,7 +11,7 @@ repository = "https://github.com/staticgc/taskwait"
 readme = "README.md"
 
 keywords = ["async", "await", "wait", "waitgroup", "tasks", "taskwait"]
-categories = ["asynchronous", ""]
+categories = ["asynchronous"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
