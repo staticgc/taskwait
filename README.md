@@ -7,7 +7,7 @@ Runtime agnostic way of waiting for async tasks.
 * Done: Support for golang's `WaitGroup.Add` & `WaitGroup.Done`
 * Done: Support for RAII based `done()`ing the task i.e. calling `done()` on drop.
 * Done: Mixing of both `add`, `done` and RAII semantics.
-* Todo: Reuse the same taskgroup for multiple checkpoints.
+* Done: Reuse the same taskgroup for multiple checkpoints.
 
 # Example 
 

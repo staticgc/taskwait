@@ -98,6 +98,9 @@ impl TaskGroup {
     /// A value can be -ve if there were more [`TaskGroup::done`] calls than [`TaskGroup::add`].
     /// The caller can use this to maintain an invariant in case of any mis-behaving tasks.
     ///
+    /// The future when resolved also resets the internal counter to zero. The taskgroup then can 
+    /// be reused.
+    ///
     /// ```no_run
     /// use taskwait::TaskGroup;
     /// 
@@ -141,12 +144,19 @@ impl Inner {
     }
 
     fn add(&self, n: u32) {
+        if n == 0 {
+            return
+        }
         // A relaxed ordering should be sufficient because, the
         // add() is always called on a valid & live object
         self.counter.fetch_add(n as i64, Ordering::Relaxed);
     }
 
     fn done_n(&self, n: u32) {
+        if n == 0 {
+            return
+        }
+
         let n = n as i64;
         // fetch_sub returns the value before the subtraction.
         // If this is the last done() then subtraction will make value 0 but will return
@@ -234,12 +244,9 @@ mod tests {
         assert_eq!(count, *n);
     }
 
-    #[tokio::test]
-    async fn basic_test_add_work() {
-        let tg = TaskGroup::new();
+    async fn _basic_test_add_work(tg: TaskGroup) {
         let num = Arc::new(Mutex::new(0));
         let count = 10000;
-
         for _ in 0..count {
             let work = tg.add_work(1);
 
@@ -255,6 +262,19 @@ mod tests {
 
         let n = num.lock().await;
         assert_eq!(count, *n);
+    }
+
+    #[tokio::test]
+    async fn basic_test_add_work() {
+        let tg = TaskGroup::new();
+        _basic_test_add_work(tg).await;
+    }
+
+    #[tokio::test]
+    async fn basic_test_add_work_resuse() {
+        let tg = TaskGroup::new();
+        _basic_test_add_work(tg.clone()).await;
+        _basic_test_add_work(tg).await;
     }
 
     #[tokio::test]
@@ -328,13 +348,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn neg_wait() {
-        // We wait after the internal counter becomes negative
-
+    async fn basic_test_add0_work() {
         let tg = TaskGroup::new();
 
+        let count = 10000;
+        let _work_0 = tg.add_work(0);
+        let work = tg.add_work(count);
+        drop(work);
+
+        tg.wait().await;
+    }
+
+    #[tokio::test]
+    async fn neg_wait() {
+        let tg = TaskGroup::new();
+        let count = 1000;
+        let _work = tg.add_work(count);
+
         // Decrement internal counter to negative
-        tg.done();
+        tg.done_n(count + 1);
 
         let n = tg.wait().await;
         assert_eq!(-1, n);
