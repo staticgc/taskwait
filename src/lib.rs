@@ -136,6 +136,10 @@ impl Inner {
         }
     }
 
+    fn reset(&self) {
+        self.counter.store(0, Ordering::Relaxed);
+    }
+
     fn add(&self, n: u32) {
         // A relaxed ordering should be sufficient because, the
         // add() is always called on a valid & live object
@@ -187,6 +191,7 @@ impl Future for WaitFuture {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let n = self.inner.counter.load(Ordering::Acquire);
         if n <= 0 {
+            self.inner.reset();
             Poll::Ready(n)
         }else{
             self.inner.waker.register(cx.waker());
