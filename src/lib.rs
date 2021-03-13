@@ -1,7 +1,7 @@
 //! This library provides facility to wait on multiple spawned async tasks.
-//! This is runtime agnostic.
+//! It is runtime agnostic.
 //!
-//! ## Example using adding and waiting on tasks
+//! ## Adding and waiting on tasks
 //! ```no_run
 //! use taskwait::TaskGroup;
 //! 
@@ -22,8 +22,8 @@
 //! 
 //! Note: User must ensure that call to done() made above is made in both success & error code path.
 //!
-//! ## Example using add & add_work
-//! This example uses auto_work() which creates a [`Work`] object. When it goes out of scope done() is 
+//! ## Using add_work
+//! This example uses add_work() which creates a [`Work`] object. When it goes out of scope done() is 
 //! is automatically called.
 //!
 //! ```no_run
@@ -41,6 +41,33 @@
 //!     }
 //! 
 //!     tg.wait().await;
+//! }
+//! ```
+//! 
+//! ## Reusing the taskgroup
+//! The following shows how the same task group can be reused to achieve checkpointing
+//!
+//! ```no_run
+//! use taskwait::{TaskGroup, Work};
+//!
+//! async do_some_tasks(tg: TaskGroup, count: usize) {
+//!     for _ in 0..count {
+//!         let work = tg.add_work(1);
+//!         tokio::spawn(async move {
+//!             let _work = work
+//!             // .. do something
+//!         });
+//!     }
+//! }
+//! 
+//! #[tokio::main]
+//! async fn main() {
+//!     let tg = TaskGroup::new();
+//!     tokio::spawn(tg.clone(), 100); // Spawn 100 tasks
+//!     wg.wait().await; // Let the first 100 complete first. 
+//!     
+//!     tokio::spawn(tg.clone(), 100); // Spawn 100 tasks
+//!     tg.wait().await; // Wait for the next 100
 //! }
 //! ```
 
@@ -67,7 +94,7 @@ impl TaskGroup {
     /// can be used to decrement the task counter.
     ///
     /// Call to this function should be matched by call to [`Self::done`].
-    /// If the call to done() needs to be done in a RAII manner use [`Self::auto_work`]
+    /// If the call to done() needs to be done in a RAII manner use [`Self::add_work`]
     pub fn add(&self, n: u32) {
         self.inner.add(n);
     }
@@ -176,7 +203,7 @@ impl Inner {
 
 /// Represents a work or task.
 ///
-/// When dropped, it decrements the task counter. See [`TaskGroup::work`] & [`TaskGroup::auto_work`]
+/// When dropped, it decrements the task counter. See [`TaskGroup::add_work`]
 pub struct Work {
     n: u32,
     inner: Arc<Inner>,
