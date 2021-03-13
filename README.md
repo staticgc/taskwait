@@ -36,7 +36,7 @@ use taskwait::TaskGroup;
 let tg = TaskGroup::();
 for _ in 0..10 {
     tg.add(1);
-    let work = tg.auto_work();
+    let work = tg.auto_work(); // Does *not* increment counter
     tokio::spawn(async move{
         let _work = work; // done() will be called when this is dropped
         ...
@@ -52,7 +52,7 @@ use taskwait::TaskGroup;
  
 let tg = TaskGroup::();
 for _ in 0..10 {
-    let work = tg.work();
+    let work = tg.work();  // Increments the counter
     tokio::spawn(async move{
         let _work = work; // done() will be called when this is dropped
         ...
