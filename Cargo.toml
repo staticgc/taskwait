@@ -1,6 +1,6 @@
 [package]
 name = "taskwait"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["staticgc <metanym3@gmail.com>"]
 edition = "2018"
 license-file = "LICENSE"
