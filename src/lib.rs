@@ -50,11 +50,11 @@
 //! ```no_run
 //! use taskwait::{TaskGroup, Work};
 //!
-//! async do_some_tasks(tg: TaskGroup, count: usize) {
+//! async multiple_tasks(tg: TaskGroup, count: usize) {
 //!     for _ in 0..count {
 //!         let work = tg.add_work(1);
 //!         tokio::spawn(async move {
-//!             let _work = work
+//!             let _work = work;
 //!             // .. do something
 //!         });
 //!     }
@@ -63,10 +63,14 @@
 //! #[tokio::main]
 //! async fn main() {
 //!     let tg = TaskGroup::new();
-//!     tokio::spawn(tg.clone(), 100); // Spawn 100 tasks
-//!     wg.wait().await; // Let the first 100 complete first. 
+//!     // Spawn 100 tasks 
+//!     tokio::spawn(multiple_tasks(tg.clone(), 100));
+//!     // Let the first 100 complete first.
+//!     tg.wait().await;
 //!     
-//!     tokio::spawn(tg.clone(), 100); // Spawn 100 tasks
+//!     // Spawn 2nd batch
+//!     tokio::spawn(multiple_tasks(tg.clone(), 100));
+//!     // Now wait for 2nd batch
 //!     tg.wait().await; // Wait for the next 100
 //! }
 //! ```
@@ -75,6 +79,7 @@ use std::sync::{Arc, atomic::{AtomicI64, Ordering}};
 use futures_util::{{future::Future}, task::{Context, AtomicWaker, Poll}};
 use std::pin::Pin;
 
+/// Group of tasks to be waited on.
 #[derive(Clone)]
 pub struct TaskGroup {
     inner: Arc<Inner>
