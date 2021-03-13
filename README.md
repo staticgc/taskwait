@@ -35,8 +35,7 @@ use taskwait::TaskGroup;
  
 let tg = TaskGroup::();
 for _ in 0..10 {
-    tg.add(1);
-    let work = tg.auto_work(); // Does *not* increment counter
+    let work = tg.add_work(1); // Increment counter
     tokio::spawn(async move{
         let _work = work; // done() will be called when this is dropped
         ...
@@ -44,21 +43,3 @@ for _ in 0..10 {
 }
 tg.wait().await;
 ```
-
-## Using RAII based semantics
-
-```rust
-use taskwait::TaskGroup;
- 
-let tg = TaskGroup::();
-for _ in 0..10 {
-    let work = tg.work();  // Increments the counter
-    tokio::spawn(async move{
-        let _work = work; // done() will be called when this is dropped
-        ...
-    })
-}
-tg.wait().await;
-```
-
-
