@@ -1,7 +1,7 @@
 [package]
 name = "taskwait"
 version = "0.1.0"
-authors = ["staticgc <metanym3@gmail.com>"]
+authors = ["staticgc <>"]
 edition = "2018"
 license-file = "LICENSE"
 description = "Runtime agnostic way to wait for a group of async tasks"
