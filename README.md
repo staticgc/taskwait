@@ -1,3 +1,9 @@
+
+[![Crates.io](https://img.shields.io/crates/v/taskwait)](https://crates.io/crates/taskwait)
+[![docs.rs](https://img.shields.io/docsrs/taskwait)](https://docs.rs/taskwait)
+![Build](https://github.com/staticgc/taskwait/actions/workflows/rust.yml/badge.svg)
+
+
 # taskwait
 
 Runtime agnostic way of waiting for async tasks.
