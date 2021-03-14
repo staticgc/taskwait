@@ -28,7 +28,7 @@ for _ in 0..10 {
 tg.wait().await;
 ```
 
-## Using add & auto_work
+## Using add & add_work
 
 ```rust
 use taskwait::TaskGroup;

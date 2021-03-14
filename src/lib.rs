@@ -50,7 +50,7 @@
 //! ```no_run
 //! use taskwait::{TaskGroup, Work};
 //!
-//! async multiple_tasks(tg: TaskGroup, count: usize) {
+//! async fn multiple_tasks(tg: TaskGroup, count: usize) {
 //!     for _ in 0..count {
 //!         let work = tg.add_work(1);
 //!         tokio::spawn(async move {
