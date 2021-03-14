@@ -85,6 +85,12 @@ pub struct TaskGroup {
     inner: Arc<Inner>
 }
 
+impl Default for TaskGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TaskGroup {
     /// Creates new task group
     pub fn new() -> Self {
