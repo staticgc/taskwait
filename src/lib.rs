@@ -9,7 +9,7 @@
 //! async fn main() {
 //!     let tg = TaskGroup::new();
 //!     for _ in 0..10 {
-//!         tg.add(1);
+//!         tg.add();
 //!         let tg_c = tg.clone();
 //!         tokio::spawn(async move{
 //!             //...
@@ -99,21 +99,32 @@ impl TaskGroup {
         }
     }
 
-    /// Increases the task counter.
+    /// Increases the task counter by 1.
     ///
     /// This is used to indicate an intention for an upcoming task. Alternatively, this
     /// can be used to decrement the task counter.
     ///
     /// Call to this function should be matched by call to [`Self::done`].
     /// If the call to done() needs to be done in a RAII manner use [`Self::add_work`]
-    pub fn add(&self, n: u32) {
-        self.inner.add(n);
+    pub fn add(&self) {
+        self.inner.add(1);
+    }
+
+    /// Increases the task counter by `n`.
+    ///
+    /// This is used to indicate an intention for an upcoming task. Alternatively, this
+    /// can be used to decrement the task counter.
+    ///
+    /// Call to this function should be matched by call to [`Self::done`].
+    /// If the call to done() needs to be done in a RAII manner use [`Self::add_work`]
+    pub fn add_n(&self, n: u32) {
+        self.inner.add(n)
     }
 
     /// Creates a work which does increment the task counter by `n`.
     /// The returned [`Work`] decrements the counter when dropped.
     pub fn add_work(&self, n: u32) -> Work {
-        self.add(n);
+        self.add_n(n);
 
         Work {
             n,
@@ -121,7 +132,7 @@ impl TaskGroup {
         }
     }
 
-    /// Decrements the task counter.
+    /// Decrements the task counter by 1.
     pub fn done(&self) {
         self.inner.done();
     }
@@ -262,7 +273,7 @@ mod tests {
         let count = 10000;
 
         for _ in 0..count {
-            tg.add(1);
+            tg.add();
             
             let tg_c = tg.clone();
             let n = num.clone();
@@ -355,7 +366,7 @@ mod tests {
         let num = Arc::new(Mutex::new(0));
         let count = 10000;
 
-        tg.add(count);
+        tg.add_n(count);
         let num_c = num.clone();
 
         let tg_c = tg.clone();
