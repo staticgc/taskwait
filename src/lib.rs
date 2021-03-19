@@ -101,9 +101,7 @@ impl TaskGroup {
 
     /// Increases the task counter by 1.
     ///
-    /// This is used to indicate an intention for an upcoming task. Alternatively, this
-    /// can be used to decrement the task counter.
-    ///
+    /// This is used to indicate an intention for an upcoming task. 
     /// Call to this function should be matched by call to [`Self::done`].
     /// If the call to done() needs to be done in a RAII manner use [`Self::add_work`]
     pub fn add(&self) {
@@ -112,9 +110,7 @@ impl TaskGroup {
 
     /// Increases the task counter by `n`.
     ///
-    /// This is used to indicate an intention for an upcoming task. Alternatively, this
-    /// can be used to decrement the task counter.
-    ///
+    /// This is used to indicate an intention for an upcoming task. 
     /// Call to this function should be matched by call to [`Self::done`].
     /// If the call to done() needs to be done in a RAII manner use [`Self::add_work`]
     pub fn add_n(&self, n: u32) {

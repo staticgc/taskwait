@@ -24,7 +24,7 @@ use taskwait::TaskGroup;
  
 let tg = TaskGroup::();
 for _ in 0..10 {
-    tg.add(1);
+    tg.add();
     let tg_c = tg.clone();
     tokio::spawn(async move{
         ...
