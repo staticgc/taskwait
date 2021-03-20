@@ -139,15 +139,12 @@ impl TaskGroup {
     }
 
     /// Total count of tasks spawned. This gets reset once the task group is awaited
-    pub fn count(&self) -> usize {
+    pub fn count(&self) -> u64 {
         self.inner.count()
     }
 
     /// Returns the [`WaitFuture`] 
-    /// When awaited the future returns the internal counter, which can be 0 or -ve.
-    /// A value can be -ve if there were more [`TaskGroup::done`] calls than [`TaskGroup::add`].
-    /// The caller can use this to maintain an invariant in case of any mis-behaving tasks.
-    ///
+    /// When awaited the future returns the [`Report`] 
     /// The future when resolved also resets the internal counter to zero. The taskgroup then can 
     /// be reused.
     ///
@@ -160,8 +157,8 @@ impl TaskGroup {
     ///     
     ///     // ... Spawn tasks ...
     ///
-    ///     let n = tg.wait().await;
-    ///     if n < 0 {
+    ///     let report = tg.wait().await;
+    ///     if report.counter < 0 {
     ///         // Return Error
     ///     }
     /// }
@@ -208,8 +205,8 @@ impl Inner {
         self.total_count.fetch_add(n as i64, Ordering::Relaxed);
     }
 
-    fn count(&self) -> usize {
-        self.total_count.load(Ordering::Relaxed) as usize
+    fn count(&self) -> u64 {
+        self.total_count.load(Ordering::Relaxed) as u64
     }
 
     fn done_n(&self, n: u32) {
@@ -256,18 +253,36 @@ pub struct WaitFuture {
 }
 
 impl Future for WaitFuture {
-    type Output = i64;
+    type Output = Report;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let n = self.inner.counter.load(Ordering::Acquire);
+
         if n <= 0 {
+            let work_count = self.inner.count();
+            let rep = Report {
+                counter: n,
+                work_count,
+            };
+
             self.inner.reset();
-            Poll::Ready(n)
+            Poll::Ready(rep)
         }else{
             self.inner.waker.register(cx.waker());
             Poll::Pending
         }
     }
+}
+
+/// Reports what transpired for the TaskGroup
+pub struct Report {
+    /// Final counter value. This could be -ve and user is free to interpret 
+    /// this as success or failure. The caller can use this to maintain an 
+    /// invariant in case of any mis-behaving tasks.
+    pub counter: i64,
+
+    /// Total work added before the TaskGroup was awaited
+    pub work_count: u64,
 }
 
 #[cfg(test)]
@@ -298,7 +313,9 @@ mod tests {
             });
         }
 
-        tg.wait().await;
+        let rep = tg.wait().await;
+        assert_eq!(count, rep.work_count);
+        assert_eq!(0, rep.counter);
 
         let n = num.lock().await;
         assert_eq!(count, *n);
@@ -318,7 +335,9 @@ mod tests {
             });
         }
 
-        tg.wait().await;
+        let rep = tg.wait().await;
+        assert_eq!(count, rep.work_count);
+        assert_eq!(0, rep.counter);
 
         let n = num.lock().await;
         assert_eq!(count, *n);
@@ -365,7 +384,9 @@ mod tests {
 
         });
 
-        tg.wait().await;
+        let rep = tg.wait().await;
+        assert_eq!(count as u64, rep.work_count);
+        assert_eq!(0, rep.counter);
 
         let n = num.lock().await;
         assert_eq!(count, *n);
@@ -401,7 +422,9 @@ mod tests {
             tg_c.done_n(count); 
         });
 
-        tg.wait().await;
+        let rep = tg.wait().await;
+        assert_eq!(count as u64, rep.work_count);
+        assert_eq!(0, rep.counter);
 
         let n = num.lock().await;
         assert_eq!(count, *n);
@@ -428,7 +451,9 @@ mod tests {
         // Decrement internal counter to negative
         tg.done_n(count + 1);
 
-        let n = tg.wait().await;
-        assert_eq!(-1, n);
+        let r = tg.wait().await;
+        assert_eq!(-1, r.counter);
+        assert_eq!(1000, r.work_count);
     }
 }
+
