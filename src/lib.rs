@@ -138,6 +138,11 @@ impl TaskGroup {
         self.inner.done_n(n);
     }
 
+    /// Total count of tasks spawned. This gets reset once the task group is awaited
+    pub fn count(&self) -> usize {
+        self.inner.count()
+    }
+
     /// Returns the [`WaitFuture`] 
     /// When awaited the future returns the internal counter, which can be 0 or -ve.
     /// A value can be -ve if there were more [`TaskGroup::done`] calls than [`TaskGroup::add`].
@@ -172,6 +177,9 @@ struct Inner {
     // Counter to keep track of outstanding work
     counter: AtomicI64,
 
+    // Total work count
+    total_count: AtomicI64,
+
     //Waker to wake the future
     waker: AtomicWaker,
 }
@@ -180,12 +188,14 @@ impl Inner {
     fn new() -> Self {
         Inner {
             counter: AtomicI64::new(0),
+            total_count: AtomicI64::new(0),
             waker: AtomicWaker::new(),
         }
     }
 
     fn reset(&self) {
         self.counter.store(0, Ordering::Relaxed);
+        self.total_count.store(0, Ordering::Relaxed);
     }
 
     fn add(&self, n: u32) {
@@ -195,6 +205,11 @@ impl Inner {
         // A relaxed ordering should be sufficient because, the
         // add() is always called on a valid & live object
         self.counter.fetch_add(n as i64, Ordering::Relaxed);
+        self.total_count.fetch_add(n as i64, Ordering::Relaxed);
+    }
+
+    fn count(&self) -> usize {
+        self.total_count.load(Ordering::Relaxed) as usize
     }
 
     fn done_n(&self, n: u32) {
@@ -208,7 +223,7 @@ impl Inner {
         // the previous value 
         let prev_val = self.counter.fetch_sub(n, Ordering::Release);
 
-        if prev_val - n   <= 1 {
+        if prev_val - n <= 1 {
             //Time to wake up the future
             self.waker.wake();
         }
