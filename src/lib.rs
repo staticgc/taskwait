@@ -220,7 +220,7 @@ impl Inner {
         // the previous value 
         let prev_val = self.counter.fetch_sub(n, Ordering::Release);
 
-        if prev_val - n <= 1 {
+        if prev_val - n <= 0 {
             //Time to wake up the future
             self.waker.wake();
         }
@@ -256,8 +256,11 @@ impl Future for WaitFuture {
     type Output = Report;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let n = self.inner.counter.load(Ordering::Acquire);
+        // Register before checking the `counter` condition to avoid a race condition
+        // that would result in lost notifications.
+        self.inner.waker.register(cx.waker());
 
+        let n = self.inner.counter.load(Ordering::Acquire);
         if n <= 0 {
             let work_count = self.inner.count();
             let rep = Report {
@@ -268,7 +271,6 @@ impl Future for WaitFuture {
             self.inner.reset();
             Poll::Ready(rep)
         }else{
-            self.inner.waker.register(cx.waker());
             Poll::Pending
         }
     }
@@ -455,5 +457,28 @@ mod tests {
         assert_eq!(-1, r.counter);
         assert_eq!(1000, r.work_count);
     }
-}
 
+    async fn _multi_thread_test_add_work(tg: TaskGroup) {
+        let count = 10000;
+        for _ in 0..count {
+            let work = tg.add_work(1);
+
+            tokio::spawn(async move {
+                let _work = work;
+            });
+        }
+
+        let rep = tg.wait().await;
+        assert_eq!(count, rep.work_count);
+        assert_eq!(0, rep.counter);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads=2)]
+    async fn multi_thread_test_add_work() {
+        let count = 500;
+        for _ in 0..count {
+            let tg = TaskGroup::new();
+            _multi_thread_test_add_work(tg).await;    
+        }
+    }
+}
